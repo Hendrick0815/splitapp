@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>分帳 App</title>
+<meta name="theme-color" content="#16285A">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="分帳">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --navy:#16285A; --navy-2:#0E1A3D; --bg:#F5F7FA; --card:#FFFFFF; --ink:#12203A; --muted:#5B6B85;
+  --line:#EDF0F5; --green:#178A63; --green-text:#127A50; --green-tint:#E3F6EE; --mint:#6FE3B8;
+  --red:#C8382F; --red-tint:#FCE9E7; --soft-blue:#E7ECF7;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button,a,input{touch-action:manipulation}
+html,body{margin:0;height:100%}
+body{background:#E6E9EF;font-family:"Segoe UI","Microsoft JhengHei","PingFang TC","Noto Sans TC","Noto Sans CJK TC",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+button,input,select{font-family:inherit;color:inherit}
+button{cursor:pointer}
+.phone{max-width:420px;margin:0 auto;min-height:100vh;background:var(--bg);position:relative;display:flex;flex-direction:column;box-shadow:0 0 40px rgba(18,32,58,.08)}
+.screen{flex:1;display:flex;flex-direction:column;padding:calc(28px + env(safe-area-inset-top)) 20px calc(110px + env(safe-area-inset-bottom));gap:16px}
+.topbar{display:flex;align-items:center;justify-content:space-between;min-height:44px}
+.topbar .title{font-size:17px;font-weight:600}
+.icon-btn{width:44px;height:44px;border-radius:22px;border:none;background:var(--card);display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(18,32,58,.08);flex-shrink:0}
+.icon-btn.dark{background:rgba(255,255,255,.12);box-shadow:none}
+.text-btn{border:none;background:none;font-size:16px;color:var(--muted);height:44px;padding:0 4px}
+h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.3px}
+.sub{font-size:14px;color:var(--muted);margin-top:4px}
+.card{background:var(--card);border-radius:20px;padding:16px;box-shadow:0 1px 3px rgba(18,32,58,.05)}
+.label{font-size:13px;color:var(--muted)}
+.hero{background:var(--navy);color:#fff;border-radius:24px;padding:22px}
+.hero .label{color:#C9D3EA}
+.big{font-size:34px;font-weight:700;letter-spacing:-.5px}
+.list{display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:12px}
+.grow{flex:1;min-width:0}
+.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item{background:var(--card);border-radius:18px;padding:14px;display:flex;align-items:center;gap:12px;border:none;width:100%;text-align:left;box-shadow:0 1px 3px rgba(18,32,58,.05)}
+.item:hover{box-shadow:0 2px 8px rgba(18,32,58,.1)}
+.tile{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-weight:700;font-size:18px}
+.name{font-size:16px;font-weight:600}
+.meta{font-size:13px;color:var(--muted);margin-top:2px}
+.amt{font-size:16px;font-weight:700;white-space:nowrap}
+.pos{color:var(--green-text)} .neg{color:var(--red)}
+.badge{font-size:11px;font-weight:600;color:#0F6B46;background:var(--green-tint);border-radius:6px;padding:2px 6px;white-space:nowrap}
+.badge.red{color:var(--red);background:var(--red-tint)}
+.section-title{font-size:13px;font-weight:600;color:var(--muted);margin-top:4px}
+.primary{height:54px;border-radius:27px;border:none;background:var(--green);color:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 6px 16px rgba(23,138,99,.28);width:100%;flex-shrink:0}
+.primary:disabled{background:#AAB4C3;box-shadow:none;cursor:not-allowed}
+.secondary{height:54px;border-radius:27px;border:none;background:var(--card);color:var(--navy);font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;box-shadow:0 1px 3px rgba(18,32,58,.1);width:100%}
+.danger{height:48px;border-radius:24px;border:1.5px solid #F2C4C0;background:#fff;color:var(--red);font-size:15px;font-weight:600;width:100%}
+.pill-row{display:flex;gap:10px}
+.pill{flex:1;height:44px;border-radius:22px;border:none;font-size:15px;font-weight:600;background:var(--card);color:var(--navy);box-shadow:0 1px 3px rgba(18,32,58,.08)}
+.pill.mint{background:var(--green-tint);color:#0F6B46;box-shadow:none}
+.fab{position:fixed;bottom:calc(28px + env(safe-area-inset-bottom));width:64px;height:64px;border-radius:32px;background:var(--green);border:none;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(23,138,99,.35);left:calc(50% + min(210px, 50vw) - 84px)}
+.bottom{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:420px;padding:12px 20px calc(24px + env(safe-area-inset-bottom));background:linear-gradient(rgba(245,247,250,0),var(--bg) 30%)}
+.field{display:flex;flex-direction:column;gap:6px}
+.input{border:1.5px solid #E1E6EF;border-radius:14px;height:48px;padding:0 14px;font-size:16px;background:#fff;outline:none;width:100%}
+.input:focus{border-color:var(--navy)}
+.amount-input{border:none;outline:none;font-size:40px;font-weight:700;letter-spacing:-1px;width:100%;background:transparent;padding:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{height:40px;padding:0 14px;border-radius:20px;border:1.5px solid #E1E6EF;background:#fff;font-size:15px}
+.chip.on{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:600}
+.chip .x{margin-left:6px;opacity:.6}
+.seg{display:flex;background:#F0F2F6;border-radius:10px;padding:3px}
+.seg button{border:none;background:none;font-size:13px;padding:6px 12px;border-radius:8px;color:var(--muted)}
+.seg button.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+.check{width:26px;height:26px;border-radius:8px;border:1.5px solid #CBD2DD;background:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0;padding:0}
+.check.on{background:var(--green);border-color:var(--green)}
+.mini-input{width:90px;height:38px;border:1.5px solid #E1E6EF;border-radius:10px;padding:0 10px;font-size:16px;text-align:right;outline:none}
+.mini-input:focus{border-color:var(--navy)}
+.sc{border-radius:20px;padding:16px;background:#fff;border:1.5px solid #fff;display:flex;flex-direction:column;gap:10px;transition:background .2s,border-color .2s}
+.sc.on{background:#EEF9F4;border-color:#9ED9C1}
+.switch{width:56px;height:34px;border-radius:17px;border:none;padding:3px;background:#CBD2DD;display:flex;justify-content:flex-start;transition:background .2s;flex-shrink:0}
+.switch.on{background:var(--green);justify-content:flex-end}
+.switch span{width:28px;height:28px;border-radius:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);display:block}
+.switch.small{width:46px;height:28px;border-radius:14px}
+.switch.small span{width:22px;height:22px;border-radius:11px}
+.calc{display:flex;justify-content:space-between;font-size:14px;color:#0F6B46;background:#fff;border-radius:12px;padding:10px 12px}
+.error{color:var(--red);font-size:13px}
+.avatar{width:34px;height:34px;border-radius:17px;font-size:14px;font-weight:700;color:var(--navy-2);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.bar{display:flex;height:8px}
+.bar .half{flex:1;display:flex;background:#F0F2F6}
+.bar .l{justify-content:flex-end;border-radius:4px 0 0 4px}
+.bar .r{border-radius:0 4px 4px 0}
+.bar .axis{width:2px;background:var(--ink)}
+.transfer{background:rgba(255,255,255,.08);border-radius:18px;padding:14px;display:flex;align-items:center;gap:10px}
+.note{background:var(--soft-blue);border-radius:14px;padding:12px 14px;font-size:13px;color:var(--navy);display:flex;gap:8px;align-items:flex-start}
+.empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:15px;line-height:1.7}
+.toast{position:fixed;left:50%;bottom:calc(110px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 18px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:50}
+.toast.show{opacity:1}
+.mark{height:34px;padding:0 12px;border-radius:17px;border:1.5px solid var(--green);background:#fff;color:#0F6B46;font-size:13px;font-weight:600;white-space:nowrap}
+.link{border:none;background:none;color:var(--muted);font-size:13px;text-decoration:underline;padding:4px}
+.divider{height:1px;background:var(--line)}
+</style>
+</head>
+<body>
+<div class="phone" id="app"></div>
+<div class="toast" id="toast"></div>
+<input type="file" id="importFile" accept=".json,application/json" style="display:none">
+
+<script>
+/* =========================================================
+   一、計算核心（與 Python 版 split_engine.py 相同邏輯）
+   金額一律為整數元；零頭用最大餘數法分配
+   ========================================================= */
+const Engine = {
+  // 服務費：四捨五入到元。ratePct 例：10 代表 10%，可到小數一位
+  serviceFee(base, on, ratePct) {
+    if (!on) return 0;
+    const permille = Math.round(ratePct * 10);          // 10% → 100‰
+    return Math.floor((base * permille + 500) / 1000);   // 整數運算的四捨五入
+  },
+  total(exp) { return exp.amount + Engine.serviceFee(exp.amount, exp.service, exp.rate); },
+
+  // 把 total 依權重分給每個人，整數且加總 = total
+  allocate(total, weights, order) {
+    const ids = Object.keys(weights).filter(id => weights[id] > 0);
+    const wsum = ids.reduce((s, id) => s + weights[id], 0);
+    if (wsum <= 0) return null;
+    const res = {}, rem = {};
+    let used = 0;
+    ids.forEach(id => {
+      const num = total * weights[id];
+      res[id] = Math.floor(num / wsum);
+      rem[id] = num - res[id] * wsum;
+      used += res[id];
+    });
+    let left = total - used;
+    ids.sort((a, b) => (rem[b] - rem[a]) || (order.indexOf(a) - order.indexOf(b)));
+    for (let i = 0; i < left; i++) res[ids[i]] += 1;
+    return res;
+  },
+
+  // 一筆帳每個人實際分攤（含服務費）
+  shares(exp, order) {
+    return Engine.allocate(Engine.total(exp), exp.weights, order) || {};
+  },
+
+  // 一筆帳每個人實際付了多少（支援多人一起付）
+  paid(exp) {
+    const ks = Object.keys(exp.payers || {});
+    if (!ks.length) return {};
+    if (!exp.multiPay || ks.length === 1) return { [ks[0]]: Engine.total(exp) };
+    return Object.assign({}, exp.payers);
+  },
+
+  // 「單點」模式的權重：總價扣掉單點 → 剩下的勾選者平分 → 單點加回本人
+  // 為了保持整數，權重全部乘上平分人數 n：共同部分每人權重 = 共同金額，單點權重 = n × 單點金額
+  itemWeights(amount, selIds, extras, order) {
+    const n = selIds.length;
+    const sumX = Object.values(extras).reduce((a, b) => a + b, 0);
+    const common = amount - sumX;
+    const w = {};
+    order.forEach(id => {
+      const v = (selIds.includes(id) ? common : 0) + (n ? n : 1) * (extras[id] || 0);
+      if (v > 0) w[id] = v;
+    });
+    return { weights: w, common, n, sumX };
+  },
+
+  // 每人：已付、應分攤、淨額
+  summary(group) {
+    const order = group.members.map(m => m.id);
+    const s = {};
+    group.members.forEach(m => s[m.id] = { paid: 0, owed: 0, net: 0 });
+    group.expenses.forEach(e => {
+      const pd = Engine.paid(e);
+      for (const id in pd) if (s[id]) s[id].paid += pd[id];
+      const sh = Engine.shares(e, order);
+      for (const id in sh) if (s[id]) s[id].owed += sh[id];
+    });
+    group.settlements.forEach(st => {
+      if (s[st.from]) s[st.from].paid += st.amount;
+      if (s[st.to]) s[st.to].paid -= st.amount;
+    });
+    for (const id in s) s[id].net = s[id].paid - s[id].owed;
+    return s;
+  },
+
+  // 債務簡化（貪婪法）：轉帳筆數 ≤ 人數 − 1
+  simplify(group) {
+    const s = Engine.summary(group);
+    const cred = [], debt = [];
+    group.members.forEach(m => {
+      const n = s[m.id].net;
+      if (n > 0) cred.push([m.id, n]); else if (n < 0) debt.push([m.id, -n]);
+    });
+    const out = [];
+    while (cred.length && debt.length) {
+      cred.sort((a, b) => b[1] - a[1]); debt.sort((a, b) => b[1] - a[1]);
+      const c = cred[0], d = debt[0], amt = Math.min(c[1], d[1]);
+      out.push({ from: d[0], to: c[0], amount: amt });
+      c[1] -= amt; d[1] -= amt;
+      if (c[1] === 0) cred.shift();
+      if (d[1] === 0) debt.shift();
+    }
+    return out;
+  },
+
+  naiveCount(group) {
+    const order = group.members.map(m => m.id);
+    let n = 0;
+    group.expenses.forEach(e => {   // 每筆各自還：每個欠錢的人分別轉給每個多付的人
+      const sh = Engine.shares(e, order), pd = Engine.paid(e);
+      let pos = 0, neg = 0;
+      order.forEach(id => { const d = (pd[id] || 0) - (sh[id] || 0); if (d > 0) pos++; else if (d < 0) neg++; });
+      n += pos * neg;
+    });
+    return n;
+  }
+};
+
+/* =========================================================
+   二、資料與儲存（存在這台電腦的瀏覽器裡）
+   ========================================================= */
+const KEY = 'splitapp.v1';
+const COLORS = ['#6FE3B8', '#A9C1FF', '#FFD08A', '#F7B2C8', '#B9E4F5', '#D7C4F5', '#FFB89A', '#C6E9A6'];
+let db = load();
+let ui = { view: 'home', gid: null, eid: null, form: null, newGroup: null, editMembers: null };
+
+function load() {
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.groups)) return migrate(d); } catch (e) {}
+  return { groups: [] };
+}
+function migrate(d) {   // 舊版資料（只有單一付款人 payer）轉成新格式
+  d.groups.forEach(g => g.expenses.forEach(e => {
+    if (!e.payers) { e.payers = { [e.payer]: 0 }; e.multiPay = false; delete e.payer; }
+  }));
+  return d;
+}
+function payerNames(g, e) { return Object.keys(e.payers).map(id => member(g, id).name).join('、'); }
+function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('無法儲存，請確認瀏覽器允許儲存資料'); } }
+function uid() { return Math.random().toString(36).slice(2, 10); }
+function group() { return db.groups.find(g => g.id === ui.gid); }
+function member(g, id) { return g.members.find(m => m.id === id) || { name: '（已移除）', color: '#ddd' }; }
+function fmt(n) { return Number(n).toLocaleString('en-US'); }
+function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n)); }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function first(name, lead) { const a = Array.from(String(name).trim()); if (!a.length) return '?'; return esc(!lead && a.length >= 2 && /[\u4e00-\u9fff]/.test(a[0]) ? a[a.length - 1] : a[0]); }
+function today() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+function dateLabel(s) { const d = new Date(s + 'T00:00:00'); return (d.getMonth() + 1) + '月' + d.getDate() + '日 週' + '日一二三四五六'[d.getDay()]; }
+function groupTotal(g) { return g.expenses.reduce((s, e) => s + Engine.total(e), 0); }
+function isIOSSafariTab() { return /iPhone|iPad|iPod/.test(navigator.userAgent) && !navigator.standalone && !matchMedia('(display-mode: standalone)').matches; }
+function toast(msg) { const t = document.getElementById('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800); }
+
+const ICON = {
+  back: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  plus: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  plusSm: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  tick: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+  arrow: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9D3EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
+  gear: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
+  copy: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>'
+};
+function initials(name) {   // 頭像文字：三個字的中文名取後兩字（承翰／亭翰），兩個字取最後一字
+  const a = Array.from(String(name).trim()); if (!a.length) return '?';
+  if (/[\u4e00-\u9fff]/.test(a[0])) return esc(a.length >= 3 ? a.slice(-2).join('') : a[a.length - 1]);
+  return esc(a[0].toUpperCase());
+}
+function avStyle(m) { return `background:${m.color};${Array.from(initials(m.name)).length > 1 ? 'font-size:12px;letter-spacing:-.5px;' : ''}`; }
+function avatar(m) { return `<span class="avatar" style="${avStyle(m)}">${initials(m.name)}</span>`; }
+
+/* =========================================================
+   三、畫面
+   ========================================================= */
+function render() {
+  const app = document.getElementById('app');
+  const views = { home, newGroup, group: groupView, expense: expenseForm, balances, settle, members: membersView };
+  if (ui.view !== 'home' && ui.view !== 'newGroup' && !group()) ui.view = 'home';
+  app.innerHTML = views[ui.view]();
+  window.scrollTo(0, 0);
+}
+
+function home() {
+  const gs = db.groups;
+  const list = gs.length ? gs.map((g, i) => `
+    <button class="item" data-act="openGroup" data-id="${g.id}">
+      <span class="tile" data-lead style="background:${['#E3F6EE', '#E7ECF7', '#FDF0E3', '#F3E8FB'][i % 4]};color:${['#127A50', '#16285A', '#A85A12', '#6B3FA0'][i % 4]}">${first(g.name, true)}</span>
+      <span class="grow"><div class="name ellipsis">${esc(g.name)}</div><div class="meta">${g.members.length} 人 · ${g.expenses.length} 筆</div></span>
+      <span style="text-align:right"><div class="meta">總花費</div><div class="amt">NT$${fmt(groupTotal(g))}</div></span>
+    </button>`).join('') : `<div class="empty">還沒有群組<br>按下方「建立新群組」開始，<br>或先<button class="link" data-act="demo">載入範例看看</button></div>`;
+  return `<div class="screen">
+    <div class="topbar"><h1 style="font-size:32px">我的群組</h1><button class="icon-btn" data-act="backup" aria-label="備份與還原">${ICON.gear}</button></div>
+    ${isIOSSafariTab() ? '<div class="note">點「分享」→「加入主畫面」安裝</div>' : ''}
+    ${gs.length ? '<div class="section-title">進行中</div>' : ''}
+    <div class="list">${list}</div>
+    ${ui.showBackup ? `<div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="name">備份與還原</div>
+      <div class="meta">換電腦或換瀏覽器前，先下載備份檔，再到新的地方匯入。</div>
+      <button class="secondary" data-act="export">下載備份檔（.json）</button>
+      <button class="secondary" data-act="import">匯入備份檔</button>
+      ${gs.length ? '' : '<button class="secondary" data-act="demo">載入範例資料</button>'}
+    </div>` : ''}
+  </div>
+  <div class="bottom"><button class="primary" data-act="newGroup">${ICON.plusSm} 建立新群組</button></div>`;
+}
+
+function newGroup() {
+  const f = ui.newGroup;
+  return `<div class="screen">
+    <div class="topbar"><button class="text-btn" data-act="home">取消</button><div class="title">建立群組</div><div style="width:40px"></div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:14px">
+      <div class="field"><label class="label" for="gname">群組名稱</label>
+        <input class="input" id="gname" placeholder="例如：花蓮兩日遊" value="${esc(f.name)}" data-bind="ngName"></div>
+      <div class="field"><label class="label" for="mname">成員（至少 2 人）</label>
+        <div class="row"><input class="input" id="mname" placeholder="輸入名字後按「加入」或 Enter" data-enter="addNgMember">
+        <button class="chip on" style="height:48px;border-radius:14px;flex-shrink:0" data-act="addNgMember">加入</button></div>
+        <div class="chips" style="margin-top:6px">${f.members.map((n, i) => `<button class="chip" data-act="rmNgMember" data-i="${i}">${esc(n)}<span class="x">✕</span></button>`).join('')}</div>
+      </div>
+      ${f.err ? `<div class="error">${f.err}</div>` : ''}
+    </div>
+  </div>
+  <div class="bottom"><button class="primary" data-act="createGroup">建立</button></div>`;
+}
+
+function groupView() {
+  const g = group(), order = g.members.map(m => m.id);
+  const sorted = [...g.expenses].sort((a, b) => b.date.localeCompare(a.date) || b.created - a.created);
+  let html = '', last = '';
+  sorted.forEach(e => {
+    if (e.date !== last) { html += `<div class="section-title">${dateLabel(e.date)}</div>`; last = e.date; }
+    const n = Object.keys(e.weights).filter(k => e.weights[k] > 0).length;
+    const how = e.type === 'equal' ? `${n} 人平分` : e.type === 'item' ? '平分＋單點' : e.type === 'exact' ? '各點各的' : '按份數分';
+    html += `<button class="item" data-act="editExpense" data-id="${e.id}">
+      <span class="tile" style="background:#FDF0E3;color:#A85A12">${first(e.title, true)}</span>
+      <span class="grow"><div class="row" style="gap:6px"><span class="name ellipsis">${esc(e.title)}</span>${e.service ? `<span class="badge">+${e.rate}%</span>` : ''}</div>
+      <div class="meta ellipsis">${esc(payerNames(g, e))} 付 · ${how}</div></span>
+      <span class="amt">${fmt(Engine.total(e))}</span></button>`;
+  });
+  if (g.settlements.length) {
+    html += `<div class="section-title">已還款紀錄</div>`;
+    g.settlements.slice().reverse().forEach(st => {
+      html += `<div class="item"><span class="tile" style="background:var(--green-tint);color:var(--green-text)">還</span>
+        <span class="grow"><div class="name">${esc(member(g, st.from).name)} → ${esc(member(g, st.to).name)}</div><div class="meta">${st.date}</div></span>
+        <span class="amt pos">${fmt(st.amount)}</span><button class="link" data-act="undoSettle" data-id="${st.id}">撤銷</button></div>`;
+    });
+  }
+  return `<div style="background:var(--navy);color:#fff;padding:calc(28px + env(safe-area-inset-top)) 20px 22px;border-radius:0 0 28px 28px;display:flex;flex-direction:column;gap:14px">
+      <div class="topbar"><button class="icon-btn dark" style="color:#fff" data-act="home" aria-label="返回">${ICON.back}</button>
+        <button class="row" style="gap:0;border:none;background:none;padding:0" data-act="members" aria-label="管理成員">
+          ${g.members.slice(0, 6).map((m, i) => `<span class="avatar" style="${avStyle(m)}border:2px solid var(--navy);margin-left:${i ? -8 : 0}px">${initials(m.name)}</span>`).join('')}
+          <span style="color:#C9D3EA;font-size:13px;margin-left:8px">成員 ›</span></button></div>
+      <div><h1>${esc(g.name)}</h1><div style="font-size:14px;color:#C9D3EA;margin-top:4px">${g.members.length} 人 · ${g.expenses.length} 筆</div></div>
+      <div><div style="font-size:13px;color:#C9D3EA">總花費</div><div class="big">NT$${fmt(groupTotal(g))}</div></div>
+    </div>
+    <div class="screen" style="padding-top:16px">
+      <div class="pill-row"><button class="pill" data-act="balances">餘額總覽</button><button class="pill mint" data-act="settle">一鍵結算</button></div>
+      ${g.expenses.length ? `<div class="list">${html}</div>` : `<div class="empty">還沒有帳目<br>按右下角「＋」新增第一筆</div>`}
+    </div>
+    <button class="fab" data-act="newExpense" aria-label="新增帳目">${ICON.plus}</button>`;
+}
+
+function membersView() {
+  const g = group(), f = ui.editMembers;
+  const used = id => g.expenses.some(e => id in e.payers || e.weights[id] > 0) || g.settlements.some(s => s.from === id || s.to === id);
+  return `<div class="screen">
+    <div class="topbar"><button class="icon-btn" data-act="openGroupBack" aria-label="返回">${ICON.back}</button><div class="title">成員與群組設定</div><div style="width:44px"></div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:12px">
+      <div class="field"><label class="label" for="rename">群組名稱</label><input class="input" id="rename" value="${esc(g.name)}" data-bind="rename"></div>
+      <div class="divider"></div>
+      <div class="label">成員</div>
+      ${g.members.map(m => `<div class="row">${avatar(m)}<span class="grow name">${esc(m.name)}</span>
+        ${used(m.id) ? '<span class="meta">有帳目，不能移除</span>' : `<button class="link" data-act="rmMember" data-id="${m.id}">移除</button>`}</div>`).join('')}
+      <div class="row"><input class="input" id="addm" placeholder="新增成員名字" data-enter="addMember"><button class="chip on" style="height:48px;border-radius:14px;flex-shrink:0" data-act="addMember">加入</button></div>
+      ${f && f.err ? `<div class="error">${f.err}</div>` : ''}
+    </div>
+    <button class="danger" data-act="deleteGroup">刪除這個群組</button>
+  </div>`;
+}
+
+function expenseForm() {
+  const g = group(), f = ui.form, c = calcForm(f);
+  const typeHint = {
+    equal: '',
+    item: '右邊填單點金額',
+    shares: '填每人份數'
+  }[f.type];
+  return `<div class="screen" style="gap:12px">
+    <div class="topbar"><button class="text-btn" data-act="openGroupBack">取消</button><div class="title">${f.id ? '編輯帳目' : '新增帳目'}</div>
+      ${f.id ? '<button class="text-btn" style="color:var(--red)" data-act="deleteExpense">刪除</button>' : '<div style="width:40px"></div>'}</div>
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="row"><div class="field grow"><label class="label" for="etitle">品項</label>
+        <input class="input" id="etitle" placeholder="例如：晚餐" value="${esc(f.title)}" data-bind="title"></div>
+        <div class="field" style="width:150px"><label class="label" for="edate">日期</label><input class="input" type="date" id="edate" value="${f.date}" data-bind="date"></div></div>
+      <label class="label" for="eamt">菜單金額（未含服務費）</label>
+      <div class="row" style="gap:6px;align-items:baseline"><span style="font-size:20px;font-weight:600;color:var(--muted)">NT$</span>
+        <input class="amount-input" id="eamt" inputmode="numeric" placeholder="0" value="${esc(f.amount)}" data-bind="amount"></div>
+    </div>
+
+    <div class="sc ${f.service ? 'on' : ''}">
+      <div class="row"><div class="grow"><div class="name">加服務費</div></div>
+        <button class="switch ${f.service ? 'on' : ''}" data-act="toggleService" aria-pressed="${f.service}" aria-label="切換服務費"><span></span></button></div>
+      ${f.service ? `<div class="row" style="gap:8px"><span class="meta">費率</span><input class="mini-input" style="width:70px" inputmode="decimal" value="${esc(f.rate)}" data-bind="rate"><span class="meta">%</span></div>
+        <div class="calc" id="calcLine">${calcLineHtml(c)}</div>` : ''}
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="row" style="justify-content:space-between"><span class="label">誰付的</span>
+        <span class="row" style="gap:8px"><span class="meta">多人一起付</span>
+        <button class="switch small ${f.multiPay ? 'on' : ''}" data-act="toggleMulti" aria-pressed="${f.multiPay}" aria-label="多人一起付"><span></span></button></span></div>
+      <div class="chips">${g.members.map(m => `<button class="chip ${f.payers.includes(m.id) ? 'on' : ''}" data-act="setPayer" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div>
+      ${f.multiPay ? `<div class="meta">${f.payers.length > 1 ? '留一格空白會自動補齊' : '再選一位付款人'}</div>
+        ${f.payers.length > 1 ? g.members.filter(m => f.payers.includes(m.id)).map(m => `<div class="row" style="min-height:36px">
+          <span class="grow" style="font-size:16px">${esc(m.name)} 付了</span>
+          <input class="mini-input" style="width:110px" inputmode="numeric" placeholder="${c.payAuto === m.id ? fmt(c.payAutoAmt) : '0'}" value="${esc(f.payAmt[m.id] || '')}" data-pay="${m.id}" aria-label="${esc(m.name)} 付了多少"></div>`).join('') : ''}
+        <div class="calc" id="payLine" style="background:#F5F7FA;color:var(--navy)">${payLineHtml(c)}</div>` : ''}
+    </div>
+
+    <div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="row" style="justify-content:space-between"><span class="label">跟誰分</span>
+        <div class="seg">${[['equal', '平分'], ['item', '單點'], ['shares', '份數']].map(([k, t]) => `<button class="${f.type === k ? 'on' : ''}" data-act="setType" data-type="${k}">${t}</button>`).join('')}</div></div>
+      ${typeHint ? `<div class="meta">${typeHint}</div>` : ''}
+      ${g.members.map(m => {
+        const check = `<button class="check ${f.sel[m.id] ? 'on' : ''}" data-act="toggleSel" data-id="${m.id}" aria-label="${esc(m.name)} 一起平分">${f.sel[m.id] ? ICON.tick : ''}</button>`;
+        const input = `<input class="mini-input" inputmode="numeric" placeholder="${f.type === 'item' ? '單點' : '0'}" value="${esc(f.vals[m.id] || '')}" data-val="${m.id}" aria-label="${esc(m.name)}${f.type === 'item' ? ' 單點金額' : ' 份數'}">`;
+        return `<div class="row" style="min-height:36px">${f.type !== 'shares' ? check : ''}<span class="grow" style="font-size:16px">${esc(m.name)}</span>
+          ${f.type !== 'equal' ? input : ''}<span class="amt" style="width:70px;text-align:right" data-share="${m.id}">${c.shares[m.id] ? fmt(c.shares[m.id]) : '—'}</span></div>`;
+      }).join('')}
+      ${f.type === 'item' ? `<div class="calc" id="itemLine" style="background:#F5F7FA;color:var(--navy);display:block;line-height:1.6">${itemLineHtml(c)}</div>` : ''}
+      <div class="error" id="formErr">${c.err || ''}</div>
+    </div>
+  </div>
+  <div class="bottom"><button class="primary" id="saveBtn" data-act="saveExpense" ${c.err ? 'disabled' : ''}>儲存 · NT$${fmt(c.total)}</button></div>`;
+}
+
+function balances() {
+  const g = group(), s = Engine.summary(g);
+  const max = Math.max(1, ...g.members.map(m => Math.abs(s[m.id].net)));
+  return `<div class="screen">
+    <div class="topbar"><button class="icon-btn" data-act="openGroupBack" aria-label="返回">${ICON.back}</button><div></div></div>
+    <div><h1>餘額總覽</h1><div class="sub">${esc(g.name)}</div></div>
+    <div class="card" style="display:flex;flex-direction:column;gap:18px;padding:18px">
+      <div class="row" style="justify-content:space-between;font-size:12px;color:var(--muted)"><span>← 要付錢</span><span>要收錢 →</span></div>
+      ${g.members.map(m => {
+        const v = s[m.id], pos = v.net > 0, neg = v.net < 0, w = Math.round(Math.abs(v.net) / max * 100) + '%';
+        return `<div style="display:flex;flex-direction:column;gap:8px">
+          <div class="row" style="gap:10px">${avatar(m)}<span class="grow name">${esc(m.name)}</span>
+            ${pos ? '<span class="badge">應收</span>' : neg ? '<span class="badge red">應付</span>' : '<span class="badge" style="background:#F0F2F6;color:var(--muted)">已結清</span>'}
+            <span class="amt ${pos ? 'pos' : neg ? 'neg' : ''}" style="font-size:18px;width:80px;text-align:right">${signed(v.net)}</span></div>
+          <div class="bar"><div class="half l"><div style="width:${neg ? w : '0%'};background:var(--red);border-radius:4px 0 0 4px"></div></div><div class="axis"></div>
+            <div class="half r"><div style="width:${pos ? w : '0%'};background:var(--green);border-radius:0 4px 4px 0"></div></div></div>
+          <div class="meta">已付 ${fmt(v.paid)} · 應分攤 ${fmt(v.owed)}</div></div>`;
+      }).join('')}
+    </div>
+  </div>
+  <div class="bottom"><button class="primary" data-act="settle">產生結算方案</button></div>`;
+}
+
+function settle() {
+  const g = group(), tr = Engine.simplify(g), naive = Engine.naiveCount(g);
+  const fees = g.expenses.reduce((s, e) => s + Engine.serviceFee(e.amount, e.service, e.rate), 0);
+  const saved = naive - tr.length;
+  return `<div class="screen">
+    <div class="topbar"><button class="icon-btn" data-act="openGroupBack" aria-label="返回">${ICON.back}</button><div class="title">結算</div><div style="width:44px"></div></div>
+    <div class="hero" style="border-radius:28px;display:flex;flex-direction:column;gap:14px;box-shadow:0 12px 28px rgba(22,40,90,.25)">
+      <div class="row" style="align-items:flex-start"><div class="grow"><div class="label">${esc(g.name)} · 結算</div>
+        <div style="font-size:23px;font-weight:700;margin-top:4px">${tr.length ? `只要轉 ${tr.length} 次就結清` : '大家都結清了！'}</div></div>
+        ${tr.length && saved > 0 && !g.settlements.length ? `<span style="font-size:12px;font-weight:600;color:var(--navy-2);background:var(--mint);border-radius:8px;padding:4px 8px;white-space:nowrap">省 ${saved} 次</span>` : ''}</div>
+      ${tr.map(t => `<div class="transfer">${avatar(member(g, t.from))}${ICON.arrow}${avatar(member(g, t.to))}
+        <div class="grow ellipsis" style="font-size:14px;color:#C9D3EA">${esc(member(g, t.from).name)} → ${esc(member(g, t.to).name)}</div>
+        <div style="font-size:20px;font-weight:700">${fmt(t.amount)}</div></div>`).join('')}
+      <div class="row" style="justify-content:space-between;font-size:12px;color:#C9D3EA;border-top:1px solid rgba(255,255,255,.12);padding-top:12px">
+        <span>總花費 NT$${fmt(groupTotal(g))}${fees ? ` · 含服務費 ${fmt(fees)}` : ''}</span><span>分帳 App</span></div>
+    </div>
+    ${tr.length ? `<div class="section-title">還款進度</div>
+    <div class="card" style="padding:6px 16px">${tr.map((t, i) => `<div class="row" style="height:54px;${i < tr.length - 1 ? 'border-bottom:1px solid var(--line)' : ''}">
+      <span class="grow" style="font-size:15px">${esc(member(g, t.from).name)} → ${esc(member(g, t.to).name)} ${fmt(t.amount)}</span>
+      <button class="mark" data-act="markPaid" data-from="${t.from}" data-to="${t.to}" data-amt="${t.amount}">標記已還</button></div>`).join('')}</div>` : ''}
+  </div>
+  <div class="bottom"><button class="primary" data-act="copySettle">${ICON.copy} 複製結算</button></div>`;
+}
+
+/* =========================================================
+   四、表單邏輯
+   ========================================================= */
+// 把表單換算成：權重、總額、每人分攤、付款資訊、錯誤訊息
+function calcForm(f) {
+  const g = group(), order = g.members.map(m => m.id);
+  const amount = parseInt(f.amount, 10) || 0, rate = parseFloat(f.rate) || 0;
+  const fee = Engine.serviceFee(amount, f.service, rate), total = amount + fee;
+  const c = { amount, fee, total, weights: {}, shares: {}, err: '' };
+  const selIds = order.filter(id => f.sel[id]);
+  if (f.type === 'equal') selIds.forEach(id => c.weights[id] = 1);
+  else if (f.type === 'shares') order.forEach(id => { const v = parseFloat(f.vals[id]); if (v > 0) c.weights[id] = Math.round(v * 100); });
+  else {
+    const extras = {}; order.forEach(id => { const v = parseInt(f.vals[id], 10); if (v > 0) extras[id] = v; });
+    const r = Engine.itemWeights(amount, selIds, extras, order);
+    Object.assign(c, { weights: r.weights, common: r.common, n: r.n, sumX: r.sumX, extras });
+  }
+  c.shares = Engine.allocate(total, c.weights, order) || {};
+  // 付款人
+  c.payers = {};
+  if (!f.multiPay || f.payers.length === 1) { if (f.payers[0]) c.payers[f.payers[0]] = 0; }
+  else {
+    const ids = order.filter(id => f.payers.includes(id));
+    const empty = ids.filter(id => !(String(f.payAmt[id] || '').trim()));
+    let filled = 0; ids.forEach(id => { const v = parseInt(f.payAmt[id], 10) || 0; c.payers[id] = v; filled += v; });
+    c.payFilled = filled;
+    if (empty.length === 1) { c.payAuto = empty[0]; c.payAutoAmt = total - filled; c.payers[empty[0]] = total - filled; }
+    c.payEmpty = empty.length;
+  }
+  c.err = validate(f, c);
+  return c;
+}
+function validate(f, c) {
+  if (!f.title.trim()) return '請輸入品項';
+  if (!(c.amount > 0)) return '請輸入金額（整數）';
+  if (!f.payers.length) return '請選擇誰付的';
+  if (f.multiPay && f.payers.length > 1) {
+    if (c.payEmpty > 1) return '請填每位付款人付了多少（可以留一格自動補）';
+    if (c.payEmpty === 1 && c.payAutoAmt <= 0) return `付款金額已經超過實付總額 ${fmt(c.total)}`;
+    if (c.payEmpty === 0 && c.payFilled !== c.total) return `付款加總 ${fmt(c.payFilled)}，跟實付總額 ${fmt(c.total)} 差 ${fmt(c.total - c.payFilled)}`;
+  }
+  if (f.service && !(parseFloat(f.rate) >= 0)) return '服務費率格式不對';
+  if (f.type === 'item') {
+    if (c.sumX > c.amount) return `單點加總 ${fmt(c.sumX)} 超過菜單金額 ${fmt(c.amount)}`;
+    if (c.common > 0 && c.n === 0) return `還有 ${fmt(c.common)} 元沒人分，請勾選要平分的人`;
+  }
+  if (!Object.keys(c.weights).length) return '至少要有一個人分攤';
+  return '';
+}
+function calcLineHtml(c) { return `<span>${fmt(c.amount)} ＋ 服務費 ${fmt(c.fee)}</span><b>＝ ${fmt(c.total)}</b>`; }
+function payLineHtml(c) {
+  if (c.payFilled === undefined) return '<span>實付總額</span><b>' + fmt(c.total) + '</b>';
+  const sum = c.payEmpty === 1 ? c.total : c.payFilled;
+  return `<span>付款合計 ${fmt(sum)}${c.payEmpty === 1 && c.payAutoAmt > 0 ? `（${esc(member(group(), c.payAuto).name)} 自動補 ${fmt(c.payAutoAmt)}）` : ''}</span><b>實付 ${fmt(c.total)}</b>`;
+}
+function itemLineHtml(c) {
+  if (!(c.amount > 0)) return '<span>—</span>';
+  if (!c.sumX) return `<span>${fmt(c.amount)} ÷ ${c.n || 0} 人</span>`;
+  const each = c.n ? Math.round(c.common / c.n * 10) / 10 : 0;
+  return `<span>(${fmt(c.amount)} − ${fmt(c.sumX)}) ÷ ${c.n || 0} 人 ＋ 單點</span>`;
+}
+function refreshForm() {   // 打字時只更新數字，不重畫整個畫面（避免游標跳掉）
+  const f = ui.form, c = calcForm(f);
+  document.querySelectorAll('[data-share]').forEach(el => { const v = c.shares[el.dataset.share]; el.textContent = v ? fmt(v) : '—'; });
+  const set = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  set('calcLine', calcLineHtml(c)); set('payLine', payLineHtml(c)); set('itemLine', itemLineHtml(c));
+  document.querySelectorAll('[data-pay]').forEach(el => { el.placeholder = c.payAuto === el.dataset.pay ? fmt(c.payAutoAmt) : '0'; });
+  document.getElementById('formErr').textContent = c.err;
+  const b = document.getElementById('saveBtn'); b.disabled = !!c.err; b.textContent = `儲存 · NT$${fmt(c.total)}`;
+}
+function openForm(exp) {
+  const g = group();
+  if (exp) {
+    const ks = Object.keys(exp.payers);
+    const f = { id: exp.id, title: exp.title, amount: String(exp.amount), date: exp.date, type: exp.type, service: exp.service, rate: String(exp.rate),
+      multiPay: !!exp.multiPay && ks.length > 1, payers: ks, payAmt: {}, sel: {}, vals: {} };
+    if (f.multiPay) ks.forEach(id => f.payAmt[id] = String(exp.payers[id]));
+    if (exp.type === 'equal') Object.keys(exp.weights).forEach(id => f.sel[id] = true);
+    else if (exp.type === 'shares') Object.keys(exp.weights).forEach(id => f.vals[id] = String(exp.weights[id] / 100));
+    else if (exp.type === 'item') { (exp.sel || []).forEach(id => f.sel[id] = true); for (const id in (exp.extras || {})) f.vals[id] = String(exp.extras[id]); }
+    else if (exp.type === 'exact') { f.type = 'item'; for (const id in exp.weights) f.vals[id] = String(exp.weights[id]); }   // 舊資料
+    ui.form = f;
+  } else {
+    const sel = {}; g.members.forEach(m => sel[m.id] = true);
+    ui.form = { id: null, title: '', amount: '', date: today(), payers: g.members[0] ? [g.members[0].id] : [], multiPay: false, payAmt: {}, type: 'equal', service: false, rate: '10', sel, vals: {} };
+  }
+  ui.view = 'expense'; render();
+  if (!exp) setTimeout(() => { const t = document.getElementById('etitle'); t && t.focus(); }, 0);
+}
+
+/* =========================================================
+   五、按鈕動作
+   ========================================================= */
+const ACT = {
+  home() { ui.view = 'home'; ui.showBackup = false; render(); },
+  backup() { ui.showBackup = !ui.showBackup; render(); },
+  demo() { db.groups.push(demoGroup()); save(); ui.showBackup = false; render(); toast('已載入範例'); },
+  newGroup() { ui.newGroup = { name: '', members: [], err: '' }; ui.view = 'newGroup'; render(); },
+  addNgMember() {
+    const el = document.getElementById('mname'), n = el.value.trim(), f = ui.newGroup;
+    if (!n) return; if (f.members.includes(n)) { f.err = '名字重複了'; render(); return; }
+    f.members.push(n); f.err = ''; render(); document.getElementById('mname').focus();
+  },
+  rmNgMember(el) { ui.newGroup.members.splice(+el.dataset.i, 1); render(); },
+  createGroup() {
+    const f = ui.newGroup; const pending = document.getElementById('mname').value.trim();
+    if (pending && !f.members.includes(pending)) f.members.push(pending);
+    if (!f.name.trim()) { f.err = '請輸入群組名稱'; render(); return; }
+    if (f.members.length < 2) { f.err = '至少要 2 位成員'; render(); return; }
+    const g = { id: uid(), name: f.name.trim(), members: f.members.map((n, i) => ({ id: uid(), name: n, color: COLORS[i % COLORS.length] })), expenses: [], settlements: [], created: Date.now() };
+    db.groups.unshift(g); save(); ui.gid = g.id; ui.view = 'group'; render();
+  },
+  openGroup(el) { ui.gid = el.dataset.id; ui.view = 'group'; render(); },
+  openGroupBack() { ui.view = 'group'; render(); },
+  members() { ui.editMembers = { err: '' }; ui.view = 'members'; render(); },
+  addMember() {
+    const g = group(), el = document.getElementById('addm'), n = el.value.trim();
+    if (!n) return; if (g.members.some(m => m.name === n)) { ui.editMembers.err = '名字重複了'; render(); return; }
+    g.members.push({ id: uid(), name: n, color: COLORS[g.members.length % COLORS.length] }); ui.editMembers.err = ''; save(); render();
+  },
+  rmMember(el) { const g = group(); g.members = g.members.filter(m => m.id !== el.dataset.id); save(); render(); },
+  deleteGroup() { const g = group(); if (!confirm(`確定刪除「${g.name}」？所有帳目都會消失。`)) return; db.groups = db.groups.filter(x => x.id !== g.id); save(); ui.view = 'home'; render(); },
+  newExpense() { if (group().members.length < 1) return; openForm(null); },
+  editExpense(el) { openForm(group().expenses.find(e => e.id === el.dataset.id)); },
+  toggleService() { ui.form.service = !ui.form.service; render(); },
+  setPayer(el) {
+    const f = ui.form, id = el.dataset.id;
+    if (!f.multiPay) f.payers = [id];
+    else if (f.payers.includes(id)) { if (f.payers.length > 1) { f.payers = f.payers.filter(x => x !== id); delete f.payAmt[id]; } }
+    else f.payers.push(id);
+    render();
+  },
+  toggleMulti() { const f = ui.form; f.multiPay = !f.multiPay; if (!f.multiPay) { f.payers = f.payers.slice(0, 1); f.payAmt = {}; } render(); },
+  setType(el) {
+    const f = ui.form, tp = el.dataset.type; if (f.type === tp) return;
+    f.type = tp; f.vals = {};
+    if (tp === 'shares') group().members.forEach(m => { if (f.sel[m.id]) f.vals[m.id] = '1'; });
+    render();
+  },
+  toggleSel(el) { const f = ui.form; f.sel[el.dataset.id] = !f.sel[el.dataset.id]; render(); },
+  saveExpense() {
+    const f = ui.form, g = group(), c = calcForm(f);
+    if (c.err) return;
+    const data = { title: f.title.trim(), amount: c.amount, date: f.date || today(), type: f.type, weights: c.weights,
+      payers: c.payers, multiPay: f.multiPay && f.payers.length > 1, service: f.service, rate: parseFloat(f.rate) || 0 };
+    if (f.type === 'item') { data.sel = Object.keys(f.sel).filter(id => f.sel[id]); data.extras = c.extras; }
+    if (f.id) { const e = g.expenses.find(x => x.id === f.id); delete e.sel; delete e.extras; delete e.payer; Object.assign(e, data); }
+    else g.expenses.push(Object.assign({ id: uid(), created: Date.now() }, data));
+    save(); ui.view = 'group'; render(); toast('已儲存');
+  },
+  deleteExpense() { if (!confirm('確定刪除這筆帳目？')) return; const g = group(); g.expenses = g.expenses.filter(e => e.id !== ui.form.id); save(); ui.view = 'group'; render(); },
+  balances() { ui.view = 'balances'; render(); },
+  settle() { ui.view = 'settle'; render(); },
+  markPaid(el) {
+    const g = group();
+    g.settlements.push({ id: uid(), from: el.dataset.from, to: el.dataset.to, amount: +el.dataset.amt, date: today() });
+    save(); render(); toast('已記錄還款');
+  },
+  undoSettle(el) { const g = group(); g.settlements = g.settlements.filter(s => s.id !== el.dataset.id); save(); render(); },
+  copySettle() {
+    const g = group(), tr = Engine.simplify(g);
+    const lines = [`【${g.name}】結算`, `總花費 NT$${fmt(groupTotal(g))}`, ''];
+    if (!tr.length) lines.push('大家都結清了！');
+    tr.forEach(t => lines.push(`${member(g, t.from).name} → ${member(g, t.to).name}：${fmt(t.amount)} 元`));
+    const text = lines.join('\n');
+    const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('已複製，可以貼到 LINE'); } catch (e) { prompt('請手動複製：', text); } ta.remove(); };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => toast('已複製，可以貼到 LINE'), fallback); else fallback();
+  },
+  export() {
+    const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `分帳備份_${today()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  },
+  import() { document.getElementById('importFile').click(); }
+};
+
+function demoGroup() {
+  const names = ['亭翰', '小明', '小華', '阿美'];
+  const ms = names.map((n, i) => ({ id: uid(), name: n, color: COLORS[i] }));
+  const [a, b, c, d] = ms.map(m => m.id), order = ms.map(m => m.id);
+  const all = { [a]: 1, [b]: 1, [c]: 1, [d]: 1 };
+  const mk = (title, amount, payers, date, type, weights, service, extra) => Object.assign({ id: uid(), created: Date.now(), title, amount, payers,
+    multiPay: Object.keys(payers).length > 1, date, type, weights, service: !!service, rate: 10 }, extra || {});
+  const brunch = Engine.itemWeights(1030, [a, b, c, d], { [b]: 30 }, order);
+  return { id: uid(), name: '花蓮兩日遊（範例）', members: ms, settlements: [], created: Date.now(), expenses: [
+    mk('民宿', 4000, { [a]: 3000, [b]: 1000 }, '2026-11-07', 'equal', all),
+    mk('海鮮餐廳晚餐', 2380, { [b]: 0 }, '2026-11-07', 'equal', all, true),
+    mk('啤酒', 600, { [c]: 0 }, '2026-11-07', 'equal', { [a]: 1, [b]: 1, [c]: 1 }),
+    mk('計程車', 450, { [d]: 0 }, '2026-11-08', 'equal', { [d]: 1, [c]: 1, [a]: 1 }),
+    mk('早午餐', 1030, { [a]: 0 }, '2026-11-08', 'item', brunch.weights, true, { sel: [a, b, c, d], extras: { [b]: 30 } })
+  ]};
+}
+
+/* ---------- 事件 ---------- */
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const fn = ACT[el.dataset.act]; if (fn) { e.preventDefault(); fn(el); }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.bind) {
+    const k = el.dataset.bind;
+    if (k === 'ngName') ui.newGroup.name = el.value;
+    else if (k === 'rename') { const g = group(); if (el.value.trim()) { g.name = el.value.trim(); save(); } }
+    else { if (k === 'amount') { el.value = el.value.replace(/[^\d]/g, ''); } ui.form[k] = el.value; if (ui.view === 'expense') refreshForm(); }
+  } else if (el.dataset.val) { ui.form.vals[el.dataset.val] = el.value; refreshForm(); }
+  else if (el.dataset.pay) { el.value = el.value.replace(/[^\d]/g, ''); ui.form.payAmt[el.dataset.pay] = el.value; refreshForm(); }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.dataset && e.target.dataset.enter) { e.preventDefault(); ACT[e.target.dataset.enter](); }
+});
+document.getElementById('importFile').addEventListener('change', e => {
+  const file = e.target.files[0]; if (!file) return;
+  const r = new FileReader();
+  r.onload = () => { try { const d = JSON.parse(r.result); if (!Array.isArray(d.groups)) throw 0; if (!confirm('匯入會取代目前所有資料，確定嗎？')) return; db = migrate(d); save(); ui.view = 'home'; render(); toast('匯入完成'); } catch (err) { toast('檔案格式不對'); } };
+  r.readAsText(file); e.target.value = '';
+});
+
+render();
+// 離線快取（只在 https 網址上啟用）
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
