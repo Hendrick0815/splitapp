@@ -106,6 +106,7 @@ h1{margin:0;font-size:28px;font-weight:700;letter-spacing:-.3px}
 <div class="toast" id="toast"></div>
 <input type="file" id="importFile" accept=".json,application/json" style="display:none">
 
+<script src="config.js"></script>
 <script>
 /* =========================================================
    一、計算核心（與 Python 版 split_engine.py 相同邏輯）
@@ -225,21 +226,27 @@ const KEY = 'splitapp.v1';
 const COLORS = ['#6FE3B8', '#A9C1FF', '#FFD08A', '#F7B2C8', '#B9E4F5', '#D7C4F5', '#FFB89A', '#C6E9A6'];
 let db = load();
 let ui = { view: 'home', gid: null, eid: null, form: null, newGroup: null, editMembers: null };
+let remoteGroups = {};          // 共享群組（從雲端即時同步來的），key = 群組 id
+const watchers = {};            // 正在監聽的共享群組
+let cloud = null;               // 雲端連線（Firebase），沒設定就是 null
+let cloudState = 'off';         // off（未設定）/ connecting / signedOut（未登入）/ ready / error
+let currentUser = null;         // 登入的 Google 帳號
+let pendingJoin = null;         // 登入前點的邀請連結，登入後自動加入
 
 function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.groups)) return migrate(d); } catch (e) {}
-  return { groups: [] };
+  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && Array.isArray(d.groups)) { if (!Array.isArray(d.joined)) d.joined = []; return migrate(d); } } catch (e) {}
+  return { groups: [], joined: [] };
 }
-function migrate(d) {   // 舊版資料（只有單一付款人 payer）轉成新格式
-  d.groups.forEach(g => g.expenses.forEach(e => {
-    if (!e.payers) { e.payers = { [e.payer]: 0 }; e.multiPay = false; delete e.payer; }
-  }));
-  return d;
+function migrateGroup(g) {   // 舊版資料（只有單一付款人 payer）轉成新格式
+  g.expenses.forEach(e => { if (!e.payers) { e.payers = { [e.payer]: 0 }; e.multiPay = false; delete e.payer; } });
+  return g;
 }
+function migrate(d) { d.groups.forEach(migrateGroup); if (!Array.isArray(d.joined)) d.joined = []; return d; }
 function payerNames(g, e) { return Object.keys(e.payers).map(id => member(g, id).name).join('、'); }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { toast('無法儲存，請確認瀏覽器允許儲存資料'); } }
 function uid() { return Math.random().toString(36).slice(2, 10); }
-function group() { return db.groups.find(g => g.id === ui.gid); }
+function allGroups() { return db.groups.concat(db.joined.map(id => remoteGroups[id] || { id, shared: true, loading: true, name: '同步中…', members: [], expenses: [], settlements: [] })); }
+function group() { const g = allGroups().find(x => x.id === ui.gid); return g && !g.loading ? g : null; }
 function member(g, id) { return g.members.find(m => m.id === id) || { name: '（已移除）', color: '#ddd' }; }
 function fmt(n) { return Number(n).toLocaleString('en-US'); }
 function signed(n) { return (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n)); }
@@ -259,6 +266,7 @@ const ICON = {
   arrow: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C9D3EA" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
   gear: '<svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',
   copy: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>',
+  google: '<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>',
   info: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16v.5"/></svg>'
 };
 function initials(name) {   // 頭像文字：三個字的中文名取後兩字（承翰／亭翰），兩個字取最後一字
@@ -272,20 +280,40 @@ function avatar(m) { return `<span class="avatar" style="${avStyle(m)}">${initia
 /* =========================================================
    三、畫面
    ========================================================= */
-function render() {
+function render(keepScroll) {
   const app = document.getElementById('app');
   const views = { home, newGroup, group: groupView, expense: expenseForm, balances, settle, members: membersView };
   if (ui.view !== 'home' && ui.view !== 'newGroup' && !group()) ui.view = 'home';
-  app.innerHTML = views[ui.view]();
-  window.scrollTo(0, 0);
+  const y = window.scrollY;
+  app.innerHTML = views[ui.view]() + (ui.showLogin ? loginModal() : '');
+  window.scrollTo(0, keepScroll ? y : 0);
+}
+// 雲端資料變動時更新畫面；正在打字就先不重畫，避免打斷輸入
+let pendingRender = false;
+function remoteChanged() {
+  const ae = document.activeElement;
+  if (ui.view === 'expense' || ui.view === 'newGroup' || (ae && ae.tagName === 'INPUT')) { pendingRender = true; return; }
+  pendingRender = false; render(true);
+}
+document.addEventListener('focusout', () => setTimeout(() => { if (pendingRender && ui.view !== 'expense' && ui.view !== 'newGroup') remoteChanged(); }, 50));
+
+function loginModal() {
+  return `<div style="position:fixed;inset:0;z-index:40;display:flex;align-items:flex-end;justify-content:center">
+    <div style="position:absolute;inset:0;background:rgba(14,26,61,.45)" data-act="closeLogin"></div>
+    <div class="card" style="position:relative;width:100%;max-width:420px;border-radius:24px 24px 0 0;padding:24px 20px calc(28px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:14px">
+      <div class="name" style="font-size:20px">登入以共享群組</div>
+      <div class="meta">${pendingJoin ? '登入後會自動加入群組' : '共享的群組會跟著 Google 帳號，換手機也找得回來'}</div>
+      <button class="secondary" style="border:1.5px solid #E1E6EF;box-shadow:none" data-act="login">${ICON.google} 使用 Google 登入</button>
+      <button class="text-btn" data-act="closeLogin">取消</button>
+    </div></div>`;
 }
 
 function home() {
-  const gs = db.groups;
+  const gs = allGroups();
   const list = gs.length ? gs.map((g, i) => `
     <button class="item" data-act="openGroup" data-id="${g.id}">
       <span class="tile" data-lead style="background:${['#E3F6EE', '#E7ECF7', '#FDF0E3', '#F3E8FB'][i % 4]};color:${['#127A50', '#16285A', '#A85A12', '#6B3FA0'][i % 4]}">${first(g.name, true)}</span>
-      <span class="grow"><div class="name ellipsis">${esc(g.name)}</div><div class="meta">${g.members.length} 人 · ${g.expenses.length} 筆</div></span>
+      <span class="grow"><div class="row" style="gap:6px"><span class="name ellipsis">${esc(g.name)}</span>${g.shared ? '<span class="badge" style="background:var(--soft-blue);color:var(--navy)">共享</span>' : ''}</div><div class="meta">${g.loading ? (cloudState === 'error' ? '無法連線' : '同步中') : `${g.members.length} 人 · ${g.expenses.length} 筆`}</div></span>
       <span style="text-align:right"><div class="meta">總花費</div><div class="amt">NT$${fmt(groupTotal(g))}</div></span>
     </button>`).join('') : `<div class="empty">還沒有群組<br>按下方「建立新群組」開始，<br>或先<button class="link" data-act="demo">載入範例看看</button></div>`;
   return `<div class="screen">
@@ -293,7 +321,16 @@ function home() {
     ${isIOSSafariTab() ? '<div class="note">點「分享」→「加入主畫面」安裝</div>' : ''}
     ${gs.length ? '<div class="section-title">進行中</div>' : ''}
     <div class="list">${list}</div>
+    ${ui.showJoin ? `<div class="card" style="display:flex;flex-direction:column;gap:10px">
+      <div class="name">加入群組</div>
+      <div class="row"><input class="input" id="joinCode" placeholder="貼上邀請連結或代碼" data-enter="joinFromInput">
+      <button class="chip on" style="height:48px;border-radius:14px;flex-shrink:0" data-act="joinFromInput">加入</button></div>
+    </div>` : ''}
     ${ui.showBackup ? `<div class="card" style="display:flex;flex-direction:column;gap:10px">
+      ${cloudState === 'ready' ? `<div class="row">${currentUser.photo ? `<img src="${esc(currentUser.photo)}" alt="" style="width:36px;height:36px;border-radius:18px" referrerpolicy="no-referrer">` : ''}
+        <div class="grow"><div class="name ellipsis">${esc(currentUser.name || 'Google 帳號')}</div><div class="meta ellipsis">${esc(currentUser.email)}</div></div>
+        <button class="link" data-act="logout">登出</button></div><div class="divider"></div>`
+      : cloudState === 'signedOut' ? `<button class="secondary" style="border:1.5px solid #E1E6EF;box-shadow:none" data-act="login">${ICON.google} 使用 Google 登入</button><div class="divider"></div>` : ''}
       <div class="name">備份與還原</div>
       <div class="meta">換電腦或換瀏覽器前，先下載備份檔，再到新的地方匯入。</div>
       <button class="secondary" data-act="export">下載備份檔（.json）</button>
@@ -301,7 +338,8 @@ function home() {
       ${gs.length ? '' : '<button class="secondary" data-act="demo">載入範例資料</button>'}
     </div>` : ''}
   </div>
-  <div class="bottom"><button class="primary" data-act="newGroup">${ICON.plusSm} 建立新群組</button></div>`;
+  <div class="bottom"><div class="row" style="gap:10px"><button class="secondary" style="flex:1" data-act="showJoin">加入群組</button>
+    <button class="primary" style="flex:1.6" data-act="newGroup">${ICON.plusSm} 建立新群組</button></div></div>`;
 }
 
 function newGroup() {
@@ -349,10 +387,16 @@ function groupView() {
         <button class="row" style="gap:0;border:none;background:none;padding:0" data-act="members" aria-label="管理成員">
           ${g.members.slice(0, 6).map((m, i) => `<span class="avatar" style="${avStyle(m)}border:2px solid var(--navy);margin-left:${i ? -8 : 0}px">${initials(m.name)}</span>`).join('')}
           <span style="color:#C9D3EA;font-size:13px;margin-left:8px">成員 ›</span></button></div>
-      <div><h1>${esc(g.name)}</h1><div style="font-size:14px;color:#C9D3EA;margin-top:4px">${g.members.length} 人 · ${g.expenses.length} 筆</div></div>
+      <div class="row" style="align-items:flex-end"><div class="grow"><h1>${esc(g.name)}</h1><div style="font-size:14px;color:#C9D3EA;margin-top:4px">${g.members.length} 人 · ${g.expenses.length} 筆${g.shared ? ' · 共享' : ''}</div></div>
+        <button style="height:36px;padding:0 14px;border-radius:18px;border:none;background:rgba(255,255,255,.14);color:#fff;font-size:14px;font-weight:600;flex-shrink:0" data-act="${g.shared ? 'toggleInvite' : 'shareGroup'}">${g.shared ? '邀請' : '共享'}</button></div>
       <div><div style="font-size:13px;color:#C9D3EA">總花費</div><div class="big">NT$${fmt(groupTotal(g))}</div></div>
     </div>
     <div class="screen" style="padding-top:16px">
+      ${g.shared && ui.showInvite ? `<div class="card" style="display:flex;flex-direction:column;gap:10px">
+        <div class="name">邀請朋友</div>
+        <div class="input" style="display:flex;align-items:center;font-size:13px;color:var(--muted);overflow:hidden;white-space:nowrap">${esc(inviteLink(g.id))}</div>
+        <button class="primary" style="height:46px;font-size:15px" data-act="copyInvite">${ICON.copy} 複製邀請連結</button>
+      </div>` : ''}
       <div class="pill-row"><button class="pill" data-act="balances">餘額總覽</button><button class="pill mint" data-act="settle">一鍵結算</button></div>
       ${g.expenses.length ? `<div class="list">${html}</div>` : `<div class="empty">還沒有帳目<br>按右下角「＋」新增第一筆</div>`}
     </div>
@@ -373,7 +417,8 @@ function membersView() {
       <div class="row"><input class="input" id="addm" placeholder="新增成員名字" data-enter="addMember"><button class="chip on" style="height:48px;border-radius:14px;flex-shrink:0" data-act="addMember">加入</button></div>
       ${f && f.err ? `<div class="error">${f.err}</div>` : ''}
     </div>
-    <button class="danger" data-act="deleteGroup">刪除這個群組</button>
+    ${g.shared ? '<button class="secondary" style="height:48px" data-act="leaveGroup">離開群組</button>' : ''}
+    <button class="danger" data-act="deleteGroup">${g.shared ? '刪除群組（所有人）' : '刪除這個群組'}</button>
   </div>`;
 }
 
@@ -573,8 +618,8 @@ function openForm(exp) {
    五、按鈕動作
    ========================================================= */
 const ACT = {
-  home() { ui.view = 'home'; ui.showBackup = false; render(); },
-  backup() { ui.showBackup = !ui.showBackup; render(); },
+  home() { ui.view = 'home'; ui.showBackup = false; ui.showInvite = false; render(); },
+  backup() { ui.showBackup = !ui.showBackup; ui.showJoin = false; render(); },
   demo() { db.groups.push(demoGroup()); save(); ui.showBackup = false; render(); toast('已載入範例'); },
   newGroup() { ui.newGroup = { name: '', members: [], err: '' }; ui.view = 'newGroup'; render(); },
   addNgMember() {
@@ -591,16 +636,41 @@ const ACT = {
     const g = { id: uid(), name: f.name.trim(), members: f.members.map((n, i) => ({ id: uid(), name: n, color: COLORS[i % COLORS.length] })), expenses: [], settlements: [], created: Date.now() };
     db.groups.unshift(g); save(); ui.gid = g.id; ui.view = 'group'; render();
   },
-  openGroup(el) { ui.gid = el.dataset.id; ui.view = 'group'; render(); },
+  openGroup(el) { if (!allGroups().find(g => g.id === el.dataset.id && !g.loading)) { toast(cloudState === 'error' ? '無法連線，請稍後再試' : '同步中，請稍候'); return; } ui.gid = el.dataset.id; ui.showInvite = false; ui.view = 'group'; render(); },
   openGroupBack() { ui.view = 'group'; render(); },
   members() { ui.editMembers = { err: '' }; ui.view = 'members'; render(); },
   addMember() {
     const g = group(), el = document.getElementById('addm'), n = el.value.trim();
     if (!n) return; if (g.members.some(m => m.name === n)) { ui.editMembers.err = '名字重複了'; render(); return; }
-    g.members.push({ id: uid(), name: n, color: COLORS[g.members.length % COLORS.length] }); ui.editMembers.err = ''; save(); render();
+    Store.addMember(g, { id: uid(), name: n, color: COLORS[g.members.length % COLORS.length] }); ui.editMembers.err = ''; render();
   },
-  rmMember(el) { const g = group(); g.members = g.members.filter(m => m.id !== el.dataset.id); save(); render(); },
-  deleteGroup() { const g = group(); if (!confirm(`確定刪除「${g.name}」？所有帳目都會消失。`)) return; db.groups = db.groups.filter(x => x.id !== g.id); save(); ui.view = 'home'; render(); },
+  rmMember(el) { const g = group(); Store.removeMember(g, el.dataset.id); render(); },
+  deleteGroup() {
+    const g = group();
+    if (!confirm(g.shared ? `確定刪除「${g.name}」？所有成員的手機上都會消失。` : `確定刪除「${g.name}」？所有帳目都會消失。`)) return;
+    Store.deleteGroup(g); ui.view = 'home'; render();
+  },
+  leaveGroup() { const g = group(); if (!confirm(`從這支手機移除「${g.name}」？之後可用邀請連結再加入。`)) return; Store.leave(g.id); ui.view = 'home'; render(); },
+  shareGroup() {
+    const g = group();
+    if (!needCloud()) return;
+    if (!confirm('共享後，拿到邀請連結的人都能查看和記帳。確定共享？')) return;
+    Store.share(g); ui.showInvite = true; render(); toast('已共享');
+  },
+  toggleInvite() { ui.showInvite = !ui.showInvite; render(); },
+  copyInvite() { copyText(inviteLink(ui.gid), '已複製邀請連結'); },
+  login() {
+    cloud.signIn().catch(e => { console.error(e); if (e.code !== 'auth/popup-closed-by-user') toast('登入失敗：' + (e.code || e.message)); });
+  },
+  closeLogin() { ui.showLogin = false; pendingJoin = null; render(true); },
+  logout() { if (!confirm('登出後，共享群組會從這支手機隱藏，重新登入就會回來。確定登出？')) return; cloud.signOut(); },
+  showJoin() { if (cloudState !== 'ready' && !needCloud()) return; ui.showJoin = !ui.showJoin; ui.showBackup = false; render(); if (ui.showJoin) setTimeout(() => document.getElementById('joinCode').focus(), 0); },
+  joinFromInput() {
+    const v = (document.getElementById('joinCode').value || '').trim();
+    const m = v.match(/join=([A-Za-z0-9_-]+)/) || v.match(/^([A-Za-z0-9_-]{8,})$/);
+    if (!m) { toast('連結或代碼不正確'); return; }
+    ui.showJoin = false; joinGroup(m[1]);
+  },
   newExpense() { if (group().members.length < 1) return; openForm(null); },
   editExpense(el) { openForm(group().expenses.find(e => e.id === el.dataset.id)); },
   toggleService() { ui.form.service = !ui.form.service; render(); },
@@ -625,27 +695,25 @@ const ACT = {
     const data = { title: f.title.trim(), amount: c.amount, date: f.date || today(), type: f.type, weights: c.weights,
       payers: c.payers, multiPay: f.multiPay && f.payers.length > 1, service: f.service, rate: parseFloat(f.rate) || 0 };
     if (f.type === 'item') { data.sel = Object.keys(f.sel).filter(id => f.sel[id]); data.extras = c.extras; }
-    if (f.id) { const e = g.expenses.find(x => x.id === f.id); delete e.sel; delete e.extras; delete e.payer; Object.assign(e, data); }
-    else g.expenses.push(Object.assign({ id: uid(), created: Date.now() }, data));
-    save(); ui.view = 'group'; render(); toast('已儲存');
+    const old = f.id && g.expenses.find(x => x.id === f.id);
+    Store.putExpense(g, Object.assign({ id: f.id || uid(), created: old ? old.created : Date.now() }, data));
+    ui.view = 'group'; render(); toast('已儲存');
   },
-  deleteExpense() { if (!confirm('確定刪除這筆帳目？')) return; const g = group(); g.expenses = g.expenses.filter(e => e.id !== ui.form.id); save(); ui.view = 'group'; render(); },
+  deleteExpense() { if (!confirm('確定刪除這筆帳目？')) return; Store.delExpense(group(), ui.form.id); ui.view = 'group'; render(); },
   balances() { ui.view = 'balances'; render(); },
   settle() { ui.view = 'settle'; render(); },
   markPaid(el) {
     const g = group();
-    g.settlements.push({ id: uid(), from: el.dataset.from, to: el.dataset.to, amount: +el.dataset.amt, date: today() });
-    save(); render(); toast('已記錄還款');
+    Store.putSettle(g, { id: uid(), from: el.dataset.from, to: el.dataset.to, amount: +el.dataset.amt, date: today(), created: Date.now() });
+    render(); toast('已記錄還款');
   },
-  undoSettle(el) { const g = group(); g.settlements = g.settlements.filter(s => s.id !== el.dataset.id); save(); render(); },
+  undoSettle(el) { Store.delSettle(group(), el.dataset.id); render(); },
   copySettle() {
     const g = group(), tr = Engine.simplify(g);
     const lines = [`【${g.name}】結算`, `總花費 NT$${fmt(groupTotal(g))}`, ''];
     if (!tr.length) lines.push('大家都結清了！');
     tr.forEach(t => lines.push(`${member(g, t.from).name} → ${member(g, t.to).name}：${fmt(t.amount)} 元`));
-    const text = lines.join('\n');
-    const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('已複製，可以貼到 LINE'); } catch (e) { prompt('請手動複製：', text); } ta.remove(); };
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => toast('已複製，可以貼到 LINE'), fallback); else fallback();
+    copyText(lines.join('\n'), '已複製，可以貼到 LINE');
   },
   export() {
     const blob = new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' });
@@ -671,6 +739,192 @@ function demoGroup() {
   ]};
 }
 
+/* =========================================================
+   六、多人同步
+   本機群組存在這支手機；共享群組存在雲端（Firebase Firestore），
+   所有成員即時看到同一份帳。沒網路時先存在手機，連上後自動補傳。
+   ========================================================= */
+function clean(o) { return JSON.parse(JSON.stringify(o)); }   // 雲端不接受 undefined
+function cloudErr(e) { console.error(e); toast('雲端同步失敗，連上網路後會再試'); }
+
+// 所有修改都經過 Store：本機群組直接存手機，共享群組寫到雲端（畫面先更新，不用等網路）
+const Store = {
+  addMember(g, m) { g.members.push(m); g.shared ? cloud.addMember(g.id, m).catch(cloudErr) : save(); },
+  removeMember(g, id) {
+    const m = g.members.find(x => x.id === id); g.members = g.members.filter(x => x.id !== id);
+    g.shared ? cloud.removeMember(g.id, m).catch(cloudErr) : save();
+  },
+  rename(g, name) {
+    g.name = name;
+    if (!g.shared) return save();
+    clearTimeout(Store._rn); Store._rn = setTimeout(() => cloud.updateGroup(g.id, { name }).catch(cloudErr), 600);
+  },
+  putExpense(g, e) {
+    const i = g.expenses.findIndex(x => x.id === e.id);
+    if (i >= 0) g.expenses[i] = e; else g.expenses.push(e);
+    g.shared ? cloud.putSub(g.id, 'expenses', e).catch(cloudErr) : save();
+  },
+  delExpense(g, id) { g.expenses = g.expenses.filter(x => x.id !== id); g.shared ? cloud.delSub(g.id, 'expenses', id).catch(cloudErr) : save(); },
+  putSettle(g, s) { g.settlements.push(s); g.shared ? cloud.putSub(g.id, 'settlements', s).catch(cloudErr) : save(); },
+  delSettle(g, id) { g.settlements = g.settlements.filter(x => x.id !== id); g.shared ? cloud.delSub(g.id, 'settlements', id).catch(cloudErr) : save(); },
+  deleteGroup(g) {
+    if (g.shared) { Store.leave(g.id); cloud.deleteGroup(g.id).catch(cloudErr); }
+    else { db.groups = db.groups.filter(x => x.id !== g.id); save(); }
+  },
+  leave(id) {
+    db.joined = db.joined.filter(x => x !== id); save();
+    if (watchers[id]) { watchers[id](); delete watchers[id]; } delete remoteGroups[id];
+    if (cloud && currentUser) cloud.removeUserGroup(id).catch(cloudErr);
+  },
+  // 把本機群組變成共享群組：上傳到雲端，換成新的雲端 id
+  share(g) {
+    const id = cloud.newId();
+    const sg = Object.assign(clean(g), { id, shared: true });
+    cloud.createGroup(sg).catch(cloudErr);
+    db.groups = db.groups.filter(x => x.id !== g.id);
+    db.joined.unshift(id); save(); cloud.addUserGroup(id).catch(cloudErr);
+    remoteGroups[id] = sg; watch(id); ui.gid = id;
+  }
+};
+
+function inviteLink(id) { return location.origin + location.pathname + '#join=' + id; }
+function copyText(text, okMsg) {
+  const fallback = () => { const ta = document.createElement('textarea'); ta.value = text; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast(okMsg); } catch (e) { prompt('請手動複製：', text); } ta.remove(); };
+  if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(() => toast(okMsg), fallback); else fallback();
+}
+
+function watch(id) {
+  if (!cloud || watchers[id]) return;
+  watchers[id] = cloud.watch(id, g => {
+    if (g === null) {                       // 群組已被刪除或代碼錯誤
+      const had = db.joined.includes(id);
+      Store.leave(id);
+      if (had) toast('群組已不存在');
+      if (ui.gid === id) ui.view = 'home';
+      render(true); return;
+    }
+    remoteGroups[id] = migrateGroup(Object.assign(g, { id, shared: true }));
+    remoteChanged();
+  });
+}
+
+function joinGroup(id) {
+  if (cloudState === 'signedOut' || cloudState === 'connecting') { pendingJoin = id; history.replaceState(null, '', location.pathname + location.search); if (cloudState === 'signedOut') { ui.showLogin = true; render(true); } return; }
+  if (cloudState !== 'ready') { toast(cloudState === 'off' ? '雲端尚未設定' : '目前無法連線雲端'); return; }
+  if (db.groups.some(g => g.id === id)) return;
+  if (!db.joined.includes(id)) { db.joined.unshift(id); save(); cloud.addUserGroup(id).catch(cloudErr); toast('已加入群組'); }
+  history.replaceState(null, '', location.pathname + location.search);
+  if (cloud) watch(id);
+  ui.gid = id; ui.view = remoteGroups[id] ? 'group' : 'home'; render();
+  // 資料還沒下載完：下載完自動打開
+  if (!remoteGroups[id]) { const t0 = Date.now(); const iv = setInterval(() => { if (remoteGroups[id]) { clearInterval(iv); if (ui.view === 'home') { ui.gid = id; ui.view = 'group'; render(); } } else if (Date.now() - t0 > 15000 || !db.joined.includes(id)) clearInterval(iv); }, 300); }
+}
+
+/* ---------- Firebase 連線 ---------- */
+const FB_VER = '10.12.2';
+const FirebaseCloud = {
+  async init(cfg, onUser) {
+    const base = `https://www.gstatic.com/firebasejs/${FB_VER}/`;
+    const [A, Au, F] = await Promise.all([import(base + 'firebase-app.js'), import(base + 'firebase-auth.js'), import(base + 'firebase-firestore.js')]);
+    this.F = F; this.Au = Au;
+    const app = A.initializeApp(cfg);
+    this.auth = Au.getAuth(app);
+    try { this.fs = F.initializeFirestore(app, { localCache: F.persistentLocalCache({ tabManager: F.persistentMultipleTabManager() }) }); }
+    catch (e) { this.fs = F.getFirestore(app); }
+    try { await Au.getRedirectResult(this.auth); } catch (e) { console.error(e); }
+    // 等第一次登入狀態回來，之後登入／登出都會再通知
+    await new Promise(res => { let first = true; Au.onAuthStateChanged(this.auth, u => { onUser(u ? { uid: u.uid, name: u.displayName || '', email: u.email || '', photo: u.photoURL || '' } : null); if (first) { first = false; res(); } }); });
+  },
+  async signIn() {
+    const p = new this.Au.GoogleAuthProvider();
+    p.setCustomParameters({ prompt: 'select_account' });
+    try { await this.Au.signInWithPopup(this.auth, p); }
+    catch (e) {
+      if (['auth/popup-blocked', 'auth/operation-not-supported-in-this-environment', 'auth/cancelled-popup-request'].includes(e.code)) return this.Au.signInWithRedirect(this.auth, p);
+      throw e;
+    }
+  },
+  signOut() { return this.Au.signOut(this.auth); },
+  userRef() { return this.F.doc(this.fs, 'users', this.auth.currentUser.uid); },
+  async loadUserGroups() { const s = await this.F.getDoc(this.userRef()); return (s.exists() && s.data().joined) || []; },
+  addUserGroup(id) { return this.F.setDoc(this.userRef(), { joined: this.F.arrayUnion(id) }, { merge: true }); },
+  removeUserGroup(id) { return this.F.setDoc(this.userRef(), { joined: this.F.arrayRemove(id) }, { merge: true }); },
+  newId() { return this.F.doc(this.F.collection(this.fs, 'groups')).id; },
+  ref(id) { return this.F.doc(this.fs, 'groups', id); },
+  watch(id, cb) {
+    const F = this.F; let head = null, ex = null, st = null;
+    const emit = () => { if (head && ex && st) cb({ name: head.name, members: head.members || [], created: head.created || 0, expenses: ex, settlements: st }); };
+    const u1 = F.onSnapshot(this.ref(id), s => {
+      if (!s.exists()) { if (!s.metadata.fromCache) cb(null); return; }
+      head = s.data(); emit();
+    }, e => console.error(e));
+    const u2 = F.onSnapshot(F.collection(this.fs, 'groups', id, 'expenses'), q => { ex = q.docs.map(d => d.data()); emit(); }, e => console.error(e));
+    const u3 = F.onSnapshot(F.collection(this.fs, 'groups', id, 'settlements'), q => { st = q.docs.map(d => d.data()); emit(); }, e => console.error(e));
+    return () => { u1(); u2(); u3(); };
+  },
+  async createGroup(g) {
+    const F = this.F, b = F.writeBatch(this.fs);
+    b.set(this.ref(g.id), clean({ name: g.name, members: g.members, created: g.created || Date.now() }));
+    g.expenses.forEach(e => b.set(F.doc(this.fs, 'groups', g.id, 'expenses', e.id), clean(e)));
+    g.settlements.forEach(s => b.set(F.doc(this.fs, 'groups', g.id, 'settlements', s.id), clean(s)));
+    await b.commit();
+  },
+  updateGroup(id, data) { return this.F.updateDoc(this.ref(id), clean(data)); },
+  addMember(id, m) { return this.F.updateDoc(this.ref(id), { members: this.F.arrayUnion(clean(m)) }); },
+  removeMember(id, m) { return this.F.updateDoc(this.ref(id), { members: this.F.arrayRemove(clean(m)) }); },
+  putSub(id, coll, o) { return this.F.setDoc(this.F.doc(this.fs, 'groups', id, coll, o.id), clean(o)); },
+  delSub(id, coll, oid) { return this.F.deleteDoc(this.F.doc(this.fs, 'groups', id, coll, oid)); },
+  async deleteGroup(id) {
+    const F = this.F, b = F.writeBatch(this.fs);
+    for (const c of ['expenses', 'settlements']) (await F.getDocs(F.collection(this.fs, 'groups', id, c))).forEach(d => b.delete(d.ref));
+    b.delete(this.ref(id)); await b.commit();
+  }
+};
+
+async function startCloud() {
+  const adapter = window.CLOUD_ADAPTER || FirebaseCloud;     // 測試時可換成模擬的雲端
+  const cfg = window.FIREBASE_CONFIG;
+  if (!window.CLOUD_ADAPTER && !(cfg && cfg.apiKey)) { cloudState = 'off'; return; }
+  cloudState = 'connecting'; cloud = adapter;
+  try { await adapter.init(cfg, onUser); }
+  catch (e) { console.error(e); cloud = null; cloudState = 'error'; render(true); return; }
+  const m = location.hash.match(/join=([A-Za-z0-9_-]+)/);
+  if (m) joinGroup(m[1]);
+}
+// 登入狀態改變：登入就下載這個帳號加入過的群組；登出就清掉共享群組
+async function onUser(u) {
+  currentUser = u;
+  if (!u) {
+    cloudState = 'signedOut';
+    Object.keys(watchers).forEach(id => { watchers[id](); delete watchers[id]; });
+    remoteGroups = {}; db.joined = []; delete db.syncedUid; save();
+    if (ui.view !== 'home' && !group()) ui.view = 'home';
+    render(true); return;
+  }
+  cloudState = 'ready'; ui.showLogin = false;
+  try {
+    const remote = await cloud.loadUserGroups();
+    if (db.syncedUid === u.uid) db.joined = remote;           // 這支手機已同步過：以帳號上的清單為準
+    else {                                                     // 第一次在這支手機登入：合併登入前加入的群組
+      const local = db.joined.slice();
+      db.joined = [...new Set(local.concat(remote))];
+      local.filter(id => !remote.includes(id)).forEach(id => cloud.addUserGroup(id).catch(cloudErr));
+      db.syncedUid = u.uid;
+    }
+    save();
+  } catch (e) { console.error(e); }
+  db.joined.forEach(watch);
+  if (pendingJoin) { const id = pendingJoin; pendingJoin = null; joinGroup(id); } else render(true);
+}
+// 需要雲端的功能先檢查登入
+function needCloud() {
+  if (cloudState === 'ready') return true;
+  if (cloudState === 'signedOut') { ui.showLogin = true; render(true); return false; }
+  toast(cloudState === 'off' ? '雲端尚未設定' : cloudState === 'connecting' ? '連線中，請稍候' : '目前無法連線雲端');
+  return false;
+}
+window.addEventListener('hashchange', () => { const m = location.hash.match(/join=([A-Za-z0-9_-]+)/); if (m) joinGroup(m[1]); });
+
 /* ---------- 事件 ---------- */
 document.addEventListener('click', e => {
   const el = e.target.closest('[data-act]'); if (!el) return;
@@ -681,7 +935,7 @@ document.addEventListener('input', e => {
   if (el.dataset.bind) {
     const k = el.dataset.bind;
     if (k === 'ngName') ui.newGroup.name = el.value;
-    else if (k === 'rename') { const g = group(); if (el.value.trim()) { g.name = el.value.trim(); save(); } }
+    else if (k === 'rename') { const g = group(); if (el.value.trim()) Store.rename(g, el.value.trim()); }
     else { if (k === 'amount') { el.value = el.value.replace(/[^\d]/g, ''); } ui.form[k] = el.value; if (ui.view === 'expense') refreshForm(); }
   } else if (el.dataset.val) { ui.form.vals[el.dataset.val] = el.value; refreshForm(); }
   else if (el.dataset.pay) { el.value = el.value.replace(/[^\d]/g, ''); ui.form.payAmt[el.dataset.pay] = el.value; refreshForm(); }
@@ -697,6 +951,7 @@ document.getElementById('importFile').addEventListener('change', e => {
 });
 
 render();
+startCloud();
 // 離線快取（只在 https 網址上啟用）
 if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js');
 </script>
